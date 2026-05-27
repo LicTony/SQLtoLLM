@@ -256,7 +256,7 @@
                             <TextBlock Text="Connection String" Style="{StaticResource FieldLabel}"/>
                             <TextBox x:Name="TxtConnString"
                                      Height="36"
-                                     VerticalContentAlignment="Center" Text="&quot;Server=DESKTOP-TONY\\SQLEXPRESS;Database=MiBaseDeDatos;Integrated Security=True;"/>
+                                     VerticalContentAlignment="Center" Text="Server=DESKTOP-TONY\\SQLEXPRESS;Database=MiBaseDeDatos;Integrated Security=True;"/>
                         </StackPanel>
 
                         <!-- Panel B: Credentials -->

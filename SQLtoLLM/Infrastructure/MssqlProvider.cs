@@ -6,23 +6,33 @@ using SQLtoLLM.Core.Models;
 
 namespace SQLtoLLM.Infrastructure;
 
-public class MssqlProvider
+public static class MssqlProvider
 {
     // ──────────────────────────────────────────────────────────────────────────
     //  Connection
     // ──────────────────────────────────────────────────────────────────────────
 
-    public async Task TestConnectionAsync(string connectionString)
+    public static async Task TestConnectionAsync(string connectionString)
     {
         await using var conn = new SqlConnection(connectionString);
         await conn.OpenAsync();
+    }
+
+    public static async Task<bool> CheckViewDefinitionPermissionAsync(string connectionString)
+    {
+        await using var conn = new SqlConnection(connectionString);
+        await conn.OpenAsync();
+        const string sql = "SELECT HAS_PERMS_BY_NAME(DB_NAME(), 'DATABASE', 'VIEW DEFINITION')";
+        await using var cmd = new SqlCommand(sql, conn);
+        var result = await cmd.ExecuteScalarAsync();
+        return result is int i && i == 1;
     }
 
     // ──────────────────────────────────────────────────────────────────────────
     //  Resolve: detect type from catalog
     // ──────────────────────────────────────────────────────────────────────────
 
-    public async Task<List<DbObject>> ResolveObjectsAsync(
+    public static async Task<List<DbObject>> ResolveObjectsAsync(
         IEnumerable<string> names,
         string connectionString)
     {
@@ -113,7 +123,7 @@ public class MssqlProvider
     //  Extract: run the extraction query and return formatted text
     // ──────────────────────────────────────────────────────────────────────────
 
-    public async Task<string> ExtractContextAsync(
+    public static async Task<string> ExtractContextAsync(
         IEnumerable<DbObject> objects,
         string connectionString)
     {
@@ -141,9 +151,9 @@ public class MssqlProvider
         await using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
-            var objectType = reader.IsDBNull(0) ? string.Empty : reader.GetString(0);
-            var objectName = reader.IsDBNull(1) ? string.Empty : reader.GetString(1);
-            var contextText = reader.IsDBNull(2) ? string.Empty : reader.GetString(2);
+            var objectType = await reader.IsDBNullAsync(0) ? string.Empty : reader.GetString(0);
+            var objectName = await reader.IsDBNullAsync(1) ? string.Empty : reader.GetString(1);
+            var contextText = await reader.IsDBNullAsync(2) ? string.Empty : reader.GetString(2);
             rows.Add((objectType, objectName, contextText));
         }
 

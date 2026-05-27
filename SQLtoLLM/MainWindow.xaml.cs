@@ -10,7 +10,11 @@ namespace SQLtoLLM;
 
 public partial class MainWindow : Window
 {
-    private readonly MssqlProvider _provider = new();
+    private const string ColorSuccessHex = "#4CAF7D";
+    private const string ColorErrorHex = "#F44747";
+    private const string ColorInfoHex = "#8888AA";
+    private const string LabelTable = "TABLE";
+
     private string _connectionString = string.Empty;
     private string _lastResult = string.Empty;
 
@@ -41,7 +45,7 @@ public partial class MainWindow : Window
 
     private async void BtnConnect_Click(object sender, RoutedEventArgs e)
     {
-        SetStatus(TxtConnStatus, "Connecting…", "#8888AA");
+        SetStatus(TxtConnStatus, "Connecting…", ColorInfoHex);
         BtnConnect.IsEnabled = false;
 
         try
@@ -50,18 +54,24 @@ public partial class MainWindow : Window
 
             if (string.IsNullOrWhiteSpace(_connectionString))
             {
-                SetStatus(TxtConnStatus, "❌ Please fill in all connection fields.", "#F44747");
+                SetStatus(TxtConnStatus, "❌ Please fill in all connection fields.", ColorErrorHex);
                 return;
             }
 
-            await _provider.TestConnectionAsync(_connectionString);
+            await MssqlProvider.TestConnectionAsync(_connectionString);
 
-            SetStatus(TxtConnStatus, "✅ Connected", "#4CAF7D");
+            var hasPermission = await MssqlProvider.CheckViewDefinitionPermissionAsync(_connectionString);
+            if (!hasPermission)
+            {
+                throw new UnauthorizedAccessException("El usuario no tiene permisos de VIEW DEFINITION en la base de datos.");
+            }
+
+            SetStatus(TxtConnStatus, "✅ Connected", ColorSuccessHex);
             EnableSection(CardObjects, true);
         }
         catch (Exception ex)
         {
-            SetStatus(TxtConnStatus, $"❌ {ex.Message}", "#F44747");
+            SetStatus(TxtConnStatus, $"❌ {ex.Message}", ColorErrorHex);
             _connectionString = string.Empty;
             EnableSection(CardObjects, false);
             EnableSection(CardExecute, false);
@@ -95,7 +105,7 @@ public partial class MainWindow : Window
 
         try
         {
-            var dbObjects = await _provider.ResolveObjectsAsync(names, _connectionString);
+            var dbObjects = await MssqlProvider.ResolveObjectsAsync(names, _connectionString);
 
             foreach (var obj in dbObjects)
             {
@@ -103,7 +113,7 @@ public partial class MainWindow : Window
                 {
                     ObjectName   = obj.ObjectName,
                     DetectedType = obj.DetectedType is not null ? TypeLabel(obj.DetectedType.Value) : "—",
-                    EditableType = obj.EditableType is not null ? TypeLabel(obj.EditableType.Value) : "TABLE",
+                    EditableType = obj.EditableType is not null ? TypeLabel(obj.EditableType.Value) : LabelTable,
                     Status       = obj.StatusDisplay
                 });
             }
@@ -139,7 +149,7 @@ public partial class MainWindow : Window
         BtnExecute.IsEnabled = false;
         TxtResult.Visibility = Visibility.Visible;
         TxtResult.Text = "Running extraction…";
-        SetStatus(TxtExecStatus, "Running…", "#8888AA");
+        SetStatus(TxtExecStatus, "Running…", ColorInfoHex);
         BtnCopy.Visibility = Visibility.Collapsed;
         _lastResult = string.Empty;
 
@@ -153,20 +163,20 @@ public partial class MainWindow : Window
                 Status       = ObjectStatus.Resolved
             }).ToList();
 
-            _lastResult = await _provider.ExtractContextAsync(objects, _connectionString);
+            _lastResult = await MssqlProvider.ExtractContextAsync(objects, _connectionString);
 
             TxtResult.Text = _lastResult;
-            SetStatus(TxtExecStatus, $"✅ {objects.Count} object(s) extracted.", "#4CAF7D");
+            SetStatus(TxtExecStatus, $"✅ {objects.Count} object(s) extracted.", ColorSuccessHex);
             BtnCopy.Visibility = Visibility.Visible;
 
             // Auto-copy
             Clipboard.SetText(_lastResult);
-            SetStatus(TxtExecStatus, $"✅ {objects.Count} object(s) extracted — copied to clipboard.", "#4CAF7D");
+            SetStatus(TxtExecStatus, $"✅ {objects.Count} object(s) extracted — copied to clipboard.", ColorSuccessHex);
         }
         catch (Exception ex)
         {
             TxtResult.Text = string.Empty;
-            SetStatus(TxtExecStatus, $"❌ {ex.Message}", "#F44747");
+            SetStatus(TxtExecStatus, $"❌ {ex.Message}", ColorErrorHex);
         }
         finally
         {
@@ -182,7 +192,7 @@ public partial class MainWindow : Window
     {
         if (string.IsNullOrEmpty(_lastResult)) return;
         Clipboard.SetText(_lastResult);
-        SetStatus(TxtExecStatus, "✅ Copied to clipboard.", "#4CAF7D");
+        SetStatus(TxtExecStatus, "✅ Copied to clipboard.", ColorSuccessHex);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -222,7 +232,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var allResolved = _rows.All(r => r.Status.StartsWith("✅"));
+        var allResolved = _rows.All(r => r.Status.StartsWith('✅'));
         EnableSection(CardExecute, allResolved);
     }
 
@@ -241,17 +251,17 @@ public partial class MainWindow : Window
 
     private static string TypeLabel(ObjectType t) => t switch
     {
-        ObjectType.Table     => "TABLE",
+        ObjectType.Table     => LabelTable,
         ObjectType.View      => "VIEW",
         ObjectType.Procedure => "PROCEDURE",
         ObjectType.Index     => "INDEX",
         ObjectType.Trigger   => "TRIGGER",
-        _                    => "TABLE"
+        _                    => LabelTable
     };
 
     private static ObjectType? ParseTypeLabel(string s) => s.ToUpperInvariant() switch
     {
-        "TABLE"     => ObjectType.Table,
+        LabelTable  => ObjectType.Table,
         "VIEW"      => ObjectType.View,
         "PROCEDURE" => ObjectType.Procedure,
         "INDEX"     => ObjectType.Index,
