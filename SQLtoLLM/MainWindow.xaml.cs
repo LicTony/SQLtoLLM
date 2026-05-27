@@ -197,18 +197,21 @@ public partial class MainWindow : Window
         }
 
         var server   = TxtServer.Text.Trim();
+        var port     = TxtPort.Text.Trim();
         var database = TxtDatabase.Text.Trim();
         var user     = TxtUser.Text.Trim();
         var password = TxtPassword.Password.Trim();
 
         if (string.IsNullOrEmpty(server) || string.IsNullOrEmpty(database))
             return string.Empty;
+            
+        var serverString = string.IsNullOrEmpty(port) ? server : $"{server},{port}";
 
         if (string.IsNullOrEmpty(user))
             // Windows Authentication
-            return $"Server={server};Database={database};Integrated Security=true;TrustServerCertificate=true;";
+            return $"Server={serverString};Database={database};Integrated Security=true;TrustServerCertificate=true;";
 
-        return $"Server={server};Database={database};User Id={user};Password={password};TrustServerCertificate=true;";
+        return $"Server={serverString};Database={database};User Id={user};Password={password};TrustServerCertificate=true;";
     }
 
     private void RefreshExecuteButton()

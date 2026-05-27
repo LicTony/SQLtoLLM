@@ -265,7 +265,9 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="2*"/>
                                     <ColumnDefinition Width="12"/>
-                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="0.8*"/>
+                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="1.5*"/>
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
@@ -278,14 +280,17 @@
                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="Server" Style="{StaticResource FieldLabel}"/>
                                 <TextBox   Grid.Row="1" Grid.Column="0" x:Name="TxtServer" Height="36" VerticalContentAlignment="Center"/>
 
-                                <TextBlock Grid.Row="0" Grid.Column="2" Text="Database" Style="{StaticResource FieldLabel}"/>
-                                <TextBox   Grid.Row="1" Grid.Column="2" x:Name="TxtDatabase" Height="36" VerticalContentAlignment="Center"/>
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="Port" Style="{StaticResource FieldLabel}"/>
+                                <TextBox   Grid.Row="1" Grid.Column="2" x:Name="TxtPort" Height="36" VerticalContentAlignment="Center" Text="1433"/>
+
+                                <TextBlock Grid.Row="0" Grid.Column="4" Text="Database" Style="{StaticResource FieldLabel}"/>
+                                <TextBox   Grid.Row="1" Grid.Column="4" x:Name="TxtDatabase" Height="36" VerticalContentAlignment="Center"/>
 
                                 <TextBlock Grid.Row="3" Grid.Column="0" Text="User" Style="{StaticResource FieldLabel}"/>
                                 <TextBox   Grid.Row="4" Grid.Column="0" x:Name="TxtUser" Height="36" VerticalContentAlignment="Center"/>
 
-                                <TextBlock Grid.Row="3" Grid.Column="2" Text="Password" Style="{StaticResource FieldLabel}"/>
-                                <PasswordBox Grid.Row="4" Grid.Column="2" x:Name="TxtPassword" Height="36" VerticalContentAlignment="Center"/>
+                                <TextBlock Grid.Row="3" Grid.Column="2" Grid.ColumnSpan="3" Text="Password" Style="{StaticResource FieldLabel}"/>
+                                <PasswordBox Grid.Row="4" Grid.Column="2" Grid.ColumnSpan="3" x:Name="TxtPassword" Height="36" VerticalContentAlignment="Center"/>
                             </Grid>
                         </StackPanel>
 
