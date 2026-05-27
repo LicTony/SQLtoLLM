@@ -5,8 +5,22 @@ using System.Windows.Media;
 using SQLtoLLM.Core.Models;
 using SQLtoLLM.Infrastructure;
 using SQLtoLLM.UI;
+using System.IO;
+using System.Text;
+using System.Text.Json;
+using System.Security.Cryptography;
+using Microsoft.Win32;
 
 namespace SQLtoLLM;
+
+public class SdcProfile
+{
+    public string Server { get; set; } = "";
+    public string Port { get; set; } = "";
+    public string Database { get; set; } = "";
+    public string User { get; set; } = "";
+    public string Password { get; set; } = "";
+}
 
 public partial class MainWindow : Window
 {
@@ -39,6 +53,106 @@ public partial class MainWindow : Window
         PanelCredentials.Visibility = useConnString ? Visibility.Collapsed : Visibility.Visible;
     }
 
+    private void BtnToggleConnection_Click(object sender, RoutedEventArgs e)
+    {
+        if (PanelConnectionBody.Visibility == Visibility.Visible)
+        {
+            PanelConnectionBody.Visibility = Visibility.Collapsed;
+            BtnToggleConnection.Content = "Expand";
+        }
+        else
+        {
+            PanelConnectionBody.Visibility = Visibility.Visible;
+            BtnToggleConnection.Content = "Collapse";
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  Load / Save Connection Profiles
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private void BtnLoad_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var useConnString = RadioConnString.IsChecked == true;
+            var ext = useConnString ? ".ConString" : ".sdc";
+            var filter = useConnString ? "Connection String|*.ConString" : "Server Database Credentials|*.sdc";
+
+            var dlg = new OpenFileDialog { Filter = filter, DefaultExt = ext };
+            if (dlg.ShowDialog() == true)
+            {
+                byte[] encryptedBytes = File.ReadAllBytes(dlg.FileName);
+                byte[] plainBytes = ProtectedData.Unprotect(encryptedBytes, null, DataProtectionScope.CurrentUser);
+                string jsonOrString = Encoding.UTF8.GetString(plainBytes);
+
+                if (useConnString)
+                {
+                    TxtConnString.Text = jsonOrString;
+                }
+                else
+                {
+                    var profile = JsonSerializer.Deserialize<SdcProfile>(jsonOrString);
+                    if (profile != null)
+                    {
+                        TxtServer.Text = profile.Server;
+                        TxtPort.Text = profile.Port;
+                        TxtDatabase.Text = profile.Database;
+                        TxtUser.Text = profile.User;
+                        TxtPassword.Password = profile.Password;
+                    }
+                }
+                SetStatus(TxtConnStatus, "✅ Profile loaded", ColorSuccessHex);
+            }
+        }
+        catch (Exception ex)
+        {
+            SetStatus(TxtConnStatus, $"❌ Load failed: {ex.Message}", ColorErrorHex);
+        }
+    }
+
+    private void BtnSave_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var useConnString = RadioConnString.IsChecked == true;
+            var ext = useConnString ? ".ConString" : ".sdc";
+            var filter = useConnString ? "Connection String|*.ConString" : "Server Database Credentials|*.sdc";
+
+            var dlg = new SaveFileDialog { Filter = filter, DefaultExt = ext };
+            if (dlg.ShowDialog() == true)
+            {
+                string contentToSave = "";
+                if (useConnString)
+                {
+                    contentToSave = TxtConnString.Text;
+                }
+                else
+                {
+                    var profile = new SdcProfile
+                    {
+                        Server = TxtServer.Text,
+                        Port = TxtPort.Text,
+                        Database = TxtDatabase.Text,
+                        User = TxtUser.Text,
+                        Password = TxtPassword.Password
+                    };
+                    contentToSave = JsonSerializer.Serialize(profile);
+                }
+
+                byte[] plainBytes = Encoding.UTF8.GetBytes(contentToSave);
+                byte[] encryptedBytes = ProtectedData.Protect(plainBytes, null, DataProtectionScope.CurrentUser);
+                File.WriteAllBytes(dlg.FileName, encryptedBytes);
+
+                SetStatus(TxtConnStatus, "✅ Profile saved", ColorSuccessHex);
+            }
+        }
+        catch (Exception ex)
+        {
+            SetStatus(TxtConnStatus, $"❌ Save failed: {ex.Message}", ColorErrorHex);
+        }
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     //  Connect
     // ──────────────────────────────────────────────────────────────────────────
@@ -68,6 +182,9 @@ public partial class MainWindow : Window
 
             SetStatus(TxtConnStatus, "✅ Connected", ColorSuccessHex);
             EnableSection(CardObjects, true);
+
+            PanelConnectionBody.Visibility = Visibility.Collapsed;
+            BtnToggleConnection.Content = "Expand";
         }
         catch (Exception ex)
         {
