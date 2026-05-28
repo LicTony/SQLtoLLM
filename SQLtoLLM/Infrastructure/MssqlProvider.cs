@@ -261,6 +261,41 @@ public static class MssqlProvider
                     )
                     + CHAR(10) + ');' + CHAR(10) +
 
+                    /* -------- INDEXES -------- */
+                    ISNULL(
+                    (
+                        STUFF((
+                            SELECT
+                                CHAR(10) +
+                                'CREATE ' +
+                                CASE WHEN i.is_unique = 1 THEN 'UNIQUE ' ELSE '' END +
+                                i.type_desc COLLATE DATABASE_DEFAULT +
+                                ' INDEX ' + i.name COLLATE DATABASE_DEFAULT +
+                                ' ON ' + o.ObjectName +
+                                ' (' +
+                                STUFF((
+                                    SELECT ', ' + c.name COLLATE DATABASE_DEFAULT
+                                    FROM sys.index_columns ic2
+                                    JOIN sys.columns c
+                                      ON c.object_id = ic2.object_id
+                                     AND c.column_id = ic2.column_id
+                                    WHERE ic2.object_id = i.object_id
+                                      AND ic2.index_id = i.index_id
+                                      AND ic2.key_ordinal > 0
+                                    ORDER BY ic2.key_ordinal
+                                    FOR XML PATH(''), TYPE
+                                ).value('.', 'nvarchar(max)') COLLATE DATABASE_DEFAULT, 1, 2, '') +
+                                ');'
+                            FROM sys.indexes i
+                            WHERE i.object_id = obj.object_id
+                              AND i.is_primary_key = 0
+                              AND i.is_hypothetical = 0
+                              AND i.type > 0
+                            ORDER BY i.name
+                            FOR XML PATH(''), TYPE
+                        ).value('.', 'nvarchar(max)') COLLATE DATABASE_DEFAULT, 1, 1, '')
+                    ), '') +
+
                     /* -------- FOREIGN KEYS -------- */
                     ISNULL(
                     (
@@ -269,23 +304,37 @@ public static class MssqlProvider
                                 CHAR(10) +
                                 'ALTER TABLE ' + o.ObjectName +
                                 ' ADD CONSTRAINT ' + fk.name COLLATE DATABASE_DEFAULT +
-                                ' FOREIGN KEY (' + pc.name COLLATE DATABASE_DEFAULT + ')' +
-                                ' REFERENCES ' +
+                                ' FOREIGN KEY (' +
+                                STUFF((
+                                    SELECT ', ' + pc.name COLLATE DATABASE_DEFAULT
+                                    FROM sys.foreign_key_columns fkc
+                                    JOIN sys.columns pc
+                                      ON pc.object_id = fkc.parent_object_id
+                                     AND pc.column_id = fkc.parent_column_id
+                                    WHERE fkc.constraint_object_id = fk.object_id
+                                    ORDER BY fkc.constraint_column_id
+                                    FOR XML PATH(''), TYPE
+                                ).value('.', 'nvarchar(max)') COLLATE DATABASE_DEFAULT, 1, 2, '') +
+                                ') REFERENCES ' +
                                 SCHEMA_NAME(rt.schema_id) + '.' +
                                 rt.name COLLATE DATABASE_DEFAULT +
-                                ' (' + rc.name COLLATE DATABASE_DEFAULT + ');'
+                                ' (' +
+                                STUFF((
+                                    SELECT ', ' + rc.name COLLATE DATABASE_DEFAULT
+                                    FROM sys.foreign_key_columns fkc
+                                    JOIN sys.columns rc
+                                      ON rc.object_id = fkc.referenced_object_id
+                                     AND rc.column_id = fkc.referenced_column_id
+                                    WHERE fkc.constraint_object_id = fk.object_id
+                                    ORDER BY fkc.constraint_column_id
+                                    FOR XML PATH(''), TYPE
+                                ).value('.', 'nvarchar(max)') COLLATE DATABASE_DEFAULT, 1, 2, '') +
+                                ');'
                             FROM sys.foreign_keys fk
-                            JOIN sys.foreign_key_columns fkc
-                                ON fkc.constraint_object_id = fk.object_id
-                            JOIN sys.columns pc
-                                ON pc.object_id = fkc.parent_object_id
-                               AND pc.column_id = fkc.parent_column_id
-                            JOIN sys.columns rc
-                                ON rc.object_id = fkc.referenced_object_id
-                               AND rc.column_id = fkc.referenced_column_id
                             JOIN sys.tables rt
-                                ON rt.object_id = fkc.referenced_object_id
+                                ON rt.object_id = fk.referenced_object_id
                             WHERE fk.parent_object_id = obj.object_id
+                            ORDER BY fk.name
                             FOR XML PATH(''), TYPE
                         ).value('.', 'nvarchar(max)') COLLATE DATABASE_DEFAULT, 1, 1, '')
                     ), '')
