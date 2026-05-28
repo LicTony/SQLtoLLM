@@ -144,20 +144,73 @@ public static class MssqlProvider
         await using var conn = new SqlConnection(connectionString);
         await conn.OpenAsync();
 
-        await using var cmd = new SqlCommand(sql, conn) { CommandTimeout = 120 };
+        // 1. Fetch Server Properties
+        var propertiesText = new StringBuilder();
+        const string sqlProperties = """
+            SELECT 
+                CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(MAX)) AS ProductVersion,
+                CAST(SERVERPROPERTY('ProductLevel') AS NVARCHAR(MAX)) AS ProductLevel,
+                CAST(SERVERPROPERTY('ProductUpdateLevel') AS NVARCHAR(MAX)) AS ProductUpdateLevel,
+                CAST(SERVERPROPERTY('ProductUpdateReference') AS NVARCHAR(MAX)) AS KBArticle,
+                CAST(SERVERPROPERTY('Edition') AS NVARCHAR(MAX)) AS Edition,
+                CAST(SERVERPROPERTY('EditionID') AS NVARCHAR(MAX)) AS EditionID,
+                CAST(SERVERPROPERTY('EngineEdition') AS NVARCHAR(MAX)) AS EngineEdition,
+                CAST(@@VERSION AS NVARCHAR(MAX)) AS FullVersionString;
+            """;
 
-        var rows = new List<(string ObjectType, string ObjectName, string ContextText)>();
-
-        await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await using (var cmdProp = new SqlCommand(sqlProperties, conn))
         {
-            var objectType = await reader.IsDBNullAsync(0) ? string.Empty : reader.GetString(0);
-            var objectName = await reader.IsDBNullAsync(1) ? string.Empty : reader.GetString(1);
-            var contextText = await reader.IsDBNullAsync(2) ? string.Empty : reader.GetString(2);
-            rows.Add((objectType, objectName, contextText));
+            await using (var readerProp = await cmdProp.ExecuteReaderAsync())
+            {
+                if (await readerProp.ReadAsync())
+                {
+                    var productVersion = await readerProp.IsDBNullAsync(0) ? "N/A" : readerProp.GetString(0);
+                    var productLevel = await readerProp.IsDBNullAsync(1) ? "N/A" : readerProp.GetString(1);
+                    var productUpdateLevel = await readerProp.IsDBNullAsync(2) ? "N/A" : readerProp.GetString(2);
+                    var kbArticle = await readerProp.IsDBNullAsync(3) ? "N/A" : readerProp.GetString(3);
+                    var edition = await readerProp.IsDBNullAsync(4) ? "N/A" : readerProp.GetString(4);
+                    var editionId = await readerProp.IsDBNullAsync(5) ? "N/A" : readerProp.GetString(5);
+                    var engineEdition = await readerProp.IsDBNullAsync(6) ? "N/A" : readerProp.GetString(6);
+                    var fullVersionString = await readerProp.IsDBNullAsync(7) ? "N/A" : readerProp.GetString(7);
+
+                    propertiesText.AppendLine("================================================================================");
+                    propertiesText.AppendLine("DATABASE SERVER INFORMATION");
+                    propertiesText.AppendLine("================================================================================");
+                    propertiesText.AppendLine("CONTEXT:");
+                    propertiesText.AppendLine($"ProductVersion       : {productVersion}");
+                    propertiesText.AppendLine($"ProductLevel         : {productLevel}");
+                    propertiesText.AppendLine($"ProductUpdateLevel   : {productUpdateLevel}");
+                    propertiesText.AppendLine($"KBArticle            : {kbArticle}");
+                    propertiesText.AppendLine($"Edition              : {edition}");
+                    propertiesText.AppendLine($"EditionID            : {editionId}");
+                    propertiesText.AppendLine($"EngineEdition        : {engineEdition}");
+                    propertiesText.AppendLine($"FullVersionString    : {fullVersionString.Trim()}");
+                    propertiesText.AppendLine("================================================================================");
+                    propertiesText.AppendLine();
+                    propertiesText.AppendLine();
+                }
+            }
         }
 
-        return OutputFormatter.Format(rows);
+        // 2. Fetch Objects Context
+        var rows = new List<(string ObjectType, string ObjectName, string ContextText)>();
+
+        await using (var cmd = new SqlCommand(sql, conn) { CommandTimeout = 120 })
+        {
+            await using (var reader = await cmd.ExecuteReaderAsync())
+            {
+                while (await reader.ReadAsync())
+                {
+                    var objectType = await reader.IsDBNullAsync(0) ? string.Empty : reader.GetString(0);
+                    var objectName = await reader.IsDBNullAsync(1) ? string.Empty : reader.GetString(1);
+                    var contextText = await reader.IsDBNullAsync(2) ? string.Empty : reader.GetString(2);
+                    rows.Add((objectType, objectName, contextText));
+                }
+            }
+        }
+
+        var objectsText = OutputFormatter.Format(rows);
+        return propertiesText.ToString() + objectsText;
     }
 
     // ──────────────────────────────────────────────────────────────────────────
