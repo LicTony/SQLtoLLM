@@ -419,6 +419,5 @@ FodyWeavers.xsd
 # Local History for Visual Studio Code
 .history/
 # Local Pi runtime state
-.atl/
-/.atl/skill-registry.md
-/.atl/.skill-registry.cache.json
+/.atl/
+/.pi/
