@@ -338,7 +338,32 @@ public static class MssqlProvider
                                     ORDER BY ic2.key_ordinal
                                     FOR XML PATH(''), TYPE
                                 ).value('.', 'nvarchar(max)') COLLATE DATABASE_DEFAULT, 1, 2, '') +
-                                ');'
+                                ')' +
+                                ISNULL(
+                                    STUFF((
+                                        SELECT ', ' + c.name COLLATE DATABASE_DEFAULT
+                                        FROM sys.index_columns ic3
+                                        JOIN sys.columns c
+                                          ON c.object_id = ic3.object_id
+                                         AND c.column_id = ic3.column_id
+                                        WHERE ic3.object_id = i.object_id
+                                          AND ic3.index_id = i.index_id
+                                          AND ic3.is_included_column = 1
+                                        ORDER BY ic3.index_column_id
+                                        FOR XML PATH(''), TYPE
+                                    ).value('.', 'nvarchar(max)') COLLATE DATABASE_DEFAULT, 1, 2,
+                                        CHAR(10) + '    INCLUDE ('),
+                                '') +
+                                CASE
+                                    WHEN EXISTS (
+                                        SELECT 1 FROM sys.index_columns ic3
+                                        WHERE ic3.object_id = i.object_id
+                                          AND ic3.index_id = i.index_id
+                                          AND ic3.is_included_column = 1
+                                    ) THEN ')'
+                                    ELSE ''
+                                END +
+                                ';'
                             FROM sys.indexes i
                             WHERE i.object_id = obj.object_id
                               AND i.is_primary_key = 0
@@ -423,7 +448,32 @@ public static class MssqlProvider
                                 ORDER BY ic2.key_ordinal
                                 FOR XML PATH(''), TYPE
                             ).value('.', 'nvarchar(max)') COLLATE DATABASE_DEFAULT, 1, 2, '') +
-                            ');'
+                            ')' +
+                            ISNULL(
+                                STUFF((
+                                    SELECT ', ' + c.name COLLATE DATABASE_DEFAULT
+                                    FROM sys.index_columns ic3
+                                    JOIN sys.columns c
+                                      ON c.object_id = ic3.object_id
+                                     AND c.column_id = ic3.column_id
+                                    WHERE ic3.object_id = i.object_id
+                                      AND ic3.index_id = i.index_id
+                                      AND ic3.is_included_column = 1
+                                    ORDER BY ic3.index_column_id
+                                    FOR XML PATH(''), TYPE
+                                ).value('.', 'nvarchar(max)') COLLATE DATABASE_DEFAULT, 1, 2,
+                                    CHAR(10) + '    INCLUDE ('),
+                            '') +
+                            CASE
+                                WHEN EXISTS (
+                                    SELECT 1 FROM sys.index_columns ic3
+                                    WHERE ic3.object_id = i.object_id
+                                      AND ic3.index_id = i.index_id
+                                      AND ic3.is_included_column = 1
+                                ) THEN ')'
+                                ELSE ''
+                            END +
+                            ';'
                         FROM sys.indexes i
                         JOIN sys.tables tb ON tb.object_id = i.object_id
                         JOIN sys.schemas s ON s.schema_id = tb.schema_id
