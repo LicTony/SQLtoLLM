@@ -255,6 +255,30 @@ public static class MssqlProvider
 
                 /* ======================= TABLE ======================= */
                 WHEN 'TABLE' THEN
+                    ISNULL(
+                        '-- Table Size: ' + 
+                        CASE 
+                            WHEN ISNULL((SELECT SUM(CAST(reserved_page_count AS BIGINT)) * 8.0 / 1024.0 
+                                         FROM sys.dm_db_partition_stats 
+                                         WHERE object_id = obj.object_id), 0) >= 1024 
+                            THEN CONVERT(VARCHAR, CONVERT(DECIMAL(10,2), 
+                                     ISNULL((SELECT SUM(CAST(reserved_page_count AS BIGINT)) * 8.0 / 1024.0 / 1024.0 
+                                             FROM sys.dm_db_partition_stats 
+                                             WHERE object_id = obj.object_id), 0))) + ' GB'
+                            ELSE CONVERT(VARCHAR, CONVERT(DECIMAL(10,2), 
+                                     ISNULL((SELECT SUM(CAST(reserved_page_count AS BIGINT)) * 8.0 / 1024.0 
+                                             FROM sys.dm_db_partition_stats 
+                                             WHERE object_id = obj.object_id), 0))) + ' MB'
+                        END + CHAR(10) +
+                        '-- Rows: ' +
+                        CONVERT(VARCHAR, 
+                            ISNULL((SELECT SUM(row_count) 
+                                    FROM sys.dm_db_partition_stats 
+                                    WHERE object_id = obj.object_id 
+                                      AND index_id IN (0, 1)), 0)
+                        ) + CHAR(10) + CHAR(10),
+                        ''
+                    ) +
                     'CREATE TABLE ' + o.ObjectName + ' (' + CHAR(10) +
 
                     STUFF((
@@ -419,6 +443,8 @@ public static class MssqlProvider
 
                 /* ======================= VIEW ======================= */
                 WHEN 'VIEW' THEN
+                    '-- Table Size: N/A' + CHAR(10) +
+                    '-- Rows: N/A' + CHAR(10) + CHAR(10) +
                     ISNULL(m.definition COLLATE DATABASE_DEFAULT, '<<No VIEW DEFINITION>>')
 
                 /* ======================= PROCEDURE ======================= */
@@ -429,6 +455,21 @@ public static class MssqlProvider
                 WHEN 'INDEX' THEN
                     (
                         SELECT TOP 1
+                            '-- Table Size: ' + 
+                            CASE 
+                                WHEN ISNULL((SELECT SUM(CAST(reserved_page_count AS BIGINT)) * 8.0 / 1024.0 
+                                             FROM sys.dm_db_partition_stats 
+                                             WHERE object_id = tb.object_id AND index_id = i.index_id), 0) >= 1024 
+                                THEN CONVERT(VARCHAR, CONVERT(DECIMAL(10,2), 
+                                         ISNULL((SELECT SUM(CAST(reserved_page_count AS BIGINT)) * 8.0 / 1024.0 / 1024.0 
+                                                 FROM sys.dm_db_partition_stats 
+                                                 WHERE object_id = tb.object_id AND index_id = i.index_id), 0))) + ' GB'
+                                ELSE CONVERT(VARCHAR, CONVERT(DECIMAL(10,2), 
+                                         ISNULL((SELECT SUM(CAST(reserved_page_count AS BIGINT)) * 8.0 / 1024.0 
+                                                 FROM sys.dm_db_partition_stats 
+                                                 WHERE object_id = tb.object_id AND index_id = i.index_id), 0))) + ' MB'
+                            END + CHAR(10) +
+                            '-- Rows: N/A' + CHAR(10) + CHAR(10) +
                             'CREATE ' +
                             CASE WHEN i.is_unique = 1 THEN 'UNIQUE ' ELSE '' END +
                             i.type_desc COLLATE DATABASE_DEFAULT +
